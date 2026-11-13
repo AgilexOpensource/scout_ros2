@@ -260,8 +260,14 @@ class ScoutMessenger {
       lateral_speed = 0;
     }
 
-    double d_x = linear_speed * std::cos(theta_) * dt;
-    double d_y = (linear_speed * std::sin(theta_) + lateral_speed) * dt;
+    // Motion-state linear and lateral velocities are expressed in the chassis
+    // body frame. Rotate both components into the odometry frame.
+    double d_x =
+        (linear_speed * std::cos(theta_) - lateral_speed * std::sin(theta_)) *
+        dt;
+    double d_y =
+        (linear_speed * std::sin(theta_) + lateral_speed * std::cos(theta_)) *
+        dt;
     double d_theta = angular_speed * dt;
 
     position_x_ += d_x;
