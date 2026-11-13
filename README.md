@@ -8,6 +8,10 @@ This repository contains minimal packages to control the scout robot using ROS.
 * scout_description: URDF model for the mobile base
 * scout_msgs: scout related message definitions
 
+## Stopping the Node
+
+On SIGINT or SIGTERM, the state/control loop stops when the ROS context closes, and the node releases its ROS resources without recreating an executor after shutdown. Stop teleoperation command sources and bring the base to rest before stopping the node; a clean process exit is not a hardware emergency stop.
+
 ## Supported Hardware
 
 * Scout

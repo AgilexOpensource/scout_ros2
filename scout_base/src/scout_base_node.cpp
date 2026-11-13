@@ -31,11 +31,17 @@ int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
   //   std::signal(SIGINT, DetachRobot);
 
-  robot = std::make_shared<ScoutBaseRos>("scout");
-  if (robot->Initialize()) {
-    std::cout << "Robot initialized, start running ..." << std::endl;
-    robot->Run();
+  try {
+    robot = std::make_shared<ScoutBaseRos>("scout");
+    if (robot->Initialize() && rclcpp::ok()) {
+      std::cout << "Robot initialized, start running ..." << std::endl;
+      robot->Run();
+    }
+  } catch (const rclcpp::exceptions::RCLError &) {
+    if (rclcpp::ok()) throw;
   }
 
+  robot.reset();
+  rclcpp::shutdown();
   return 0;
 }

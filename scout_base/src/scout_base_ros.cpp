@@ -122,6 +122,9 @@ bool ScoutBaseRos::Initialize() {
 void ScoutBaseRos::Stop() { keep_running_ = false; }
 
 void ScoutBaseRos::Run() {
+  rclcpp::executors::SingleThreadedExecutor executor;
+  executor.add_node(shared_from_this());
+
   // instantiate a ROS messenger
   if (!is_omni_) {
     std::unique_ptr<ScoutMessenger<ScoutRobot>> messenger =
@@ -152,9 +155,9 @@ void ScoutBaseRos::Run() {
     messenger->SetupSubscription();
     keep_running_ = true;
     rclcpp::Rate rate(50);
-    while (keep_running_) {
+    while (keep_running_ && rclcpp::ok()) {
       messenger->PublishStateToROS();
-      rclcpp::spin_some(shared_from_this());
+      executor.spin_some();
       rate.sleep();
     }
   } else {
@@ -186,9 +189,9 @@ void ScoutBaseRos::Run() {
     messenger->SetupSubscription();
     rclcpp::Rate rate(50);
     keep_running_ = true;
-    while (keep_running_) {
+    while (keep_running_ && rclcpp::ok()) {
       messenger->PublishStateToROS();
-      rclcpp::spin_some(shared_from_this());
+      executor.spin_some();
       rate.sleep();
     }
   }
