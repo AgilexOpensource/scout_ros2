@@ -9,6 +9,8 @@
 
 #include "scout_base/scout_base_ros.hpp"
 
+#include <rcl_interfaces/msg/parameter_descriptor.hpp>
+
 #include "scout_base/scout_messenger.hpp"
 #include "ugv_sdk/utilities/protocol_detector.hpp"
 
@@ -20,6 +22,12 @@ ScoutBaseRos::ScoutBaseRos(std::string node_name)
   this->declare_parameter("odom_frame", rclcpp::ParameterValue("odom"));
   this->declare_parameter("base_frame", rclcpp::ParameterValue("base_link"));
   this->declare_parameter("odom_topic_name", rclcpp::ParameterValue("odom"));
+  rcl_interfaces::msg::ParameterDescriptor odometry_sign_descriptor;
+  odometry_sign_descriptor.read_only = true;
+  odometry_sign_descriptor.description =
+      "Longitudinal odometry feedback sign (+1 or -1); commands are unchanged";
+  this->declare_parameter("odom_linear_velocity_sign", rclcpp::ParameterValue(1),
+                          odometry_sign_descriptor);
 
   this->declare_parameter("is_scout_mini", rclcpp::ParameterValue(false));
   this->declare_parameter("is_omni_wheel", rclcpp::ParameterValue(false));
@@ -37,6 +45,9 @@ void ScoutBaseRos::LoadParameters() {
   this->get_parameter_or<std::string>("base_frame", base_frame_, "base_link");
   this->get_parameter_or<std::string>("odom_topic_name", odom_topic_name_,
                                       "odom");
+  this->get_parameter_or<int>("odom_linear_velocity_sign",
+                             odom_linear_velocity_sign_, 1);
+  ValidateOdometryLinearVelocitySign(odom_linear_velocity_sign_);
 
   this->get_parameter_or<bool>("is_scout_mini", is_scout_mini_, false);
   this->get_parameter_or<bool>("is_omni_wheel", is_omni_wheel_, false);
@@ -49,6 +60,8 @@ void ScoutBaseRos::LoadParameters() {
   std::cout << "- odom frame name: " << odom_frame_ << std::endl;
   std::cout << "- base frame name: " << base_frame_ << std::endl;
   std::cout << "- odom topic name: " << odom_topic_name_ << std::endl;
+  std::cout << "- odom linear velocity sign: " << odom_linear_velocity_sign_
+            << std::endl;
 
   std::cout << "- is scout mini: " << std::boolalpha << is_scout_mini_
             << std::endl;
@@ -134,6 +147,7 @@ void ScoutBaseRos::Run() {
     messenger->SetOdometryFrame(odom_frame_);
     messenger->SetBaseFrame(base_frame_);
     messenger->SetOdometryTopicName(odom_topic_name_);
+    messenger->SetOdometryLinearVelocitySign(odom_linear_velocity_sign_);
     if (simulated_robot_) messenger->SetSimulationMode(sim_control_rate_);
 
     // connect to robot and setup ROS subscription
@@ -168,6 +182,7 @@ void ScoutBaseRos::Run() {
     messenger->SetOdometryFrame(odom_frame_);
     messenger->SetBaseFrame(base_frame_);
     messenger->SetOdometryTopicName(odom_topic_name_);
+    messenger->SetOdometryLinearVelocitySign(odom_linear_velocity_sign_);
     if (simulated_robot_) messenger->SetSimulationMode(sim_control_rate_);
 
     // connect to robot and setup ROS subscription

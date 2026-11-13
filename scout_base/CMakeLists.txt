@@ -20,6 +20,7 @@ list(APPEND CMAKE_PREFIX_PATH "/opt/weston_robot/lib/cmake")
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(rcl_interfaces REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
@@ -58,7 +59,7 @@ add_executable(scout_base_node
     src/scout_base_ros.cpp
     src/scout_base_node.cpp)
 target_link_libraries(scout_base_node ugv_sdk)
-ament_target_dependencies(scout_base_node rclcpp tf2 tf2_ros std_msgs nav_msgs sensor_msgs scout_msgs tf2_geometry_msgs)
+ament_target_dependencies(scout_base_node rclcpp rcl_interfaces tf2 tf2_ros std_msgs nav_msgs sensor_msgs scout_msgs tf2_geometry_msgs)
 
 install(TARGETS scout_base_node
   DESTINATION lib/${PROJECT_NAME})
@@ -67,6 +68,8 @@ install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}/)
   
 if(BUILD_TESTING)
+  add_executable(scout_odometry_test test/test_odometry.cpp)
+  add_test(NAME scout_odometry_test COMMAND scout_odometry_test)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
   # uncomment the line when a copyright and license is not present in all source files

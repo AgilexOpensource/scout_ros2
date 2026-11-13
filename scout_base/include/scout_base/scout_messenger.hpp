@@ -25,6 +25,7 @@
 #include "scout_msgs/msg/scout_rc_state.hpp"
 
 #include "ugv_sdk/mobile_robot/scout_robot.hpp"
+#include "scout_base/scout_odometry.hpp"
 
 namespace westonrobot {
 template <typename ScoutType>
@@ -36,6 +37,9 @@ class ScoutMessenger {
   void SetOdometryFrame(std::string frame) { odom_frame_ = frame; }
   void SetBaseFrame(std::string frame) { base_frame_ = frame; }
   void SetOdometryTopicName(std::string name) { odom_topic_name_ = name; }
+  void SetOdometryLinearVelocitySign(int sign) {
+    odom_linear_velocity_sign_ = ValidateOdometryLinearVelocitySign(sign);
+  }
 
   void SetSimulationMode(int loop_rate) {
     simulated_robot_ = true;
@@ -155,6 +159,7 @@ class ScoutMessenger {
   std::string odom_frame_;
   std::string base_frame_;
   std::string odom_topic_name_;
+  int odom_linear_velocity_sign_ = 1;
 
   bool simulated_robot_ = false;
   int sim_control_rate_ = 50;
@@ -260,19 +265,12 @@ class ScoutMessenger {
       lateral_speed = 0;
     }
 
-    // Motion-state linear and lateral velocities are expressed in the chassis
-    // body frame. Rotate both components into the odometry frame.
-    double d_x =
-        (linear_speed * std::cos(theta_) - lateral_speed * std::sin(theta_)) *
-        dt;
-    double d_y =
-        (linear_speed * std::sin(theta_) + lateral_speed * std::cos(theta_)) *
-        dt;
-    double d_theta = angular_speed * dt;
-
-    position_x_ += d_x;
-    position_y_ += d_y;
-    theta_ += d_theta;
+    const auto step = ComputeOdometryStep(linear_speed, lateral_speed,
+                                          angular_speed, theta_, dt,
+                                          odom_linear_velocity_sign_);
+    position_x_ += step.dx;
+    position_y_ += step.dy;
+    theta_ += step.dtheta;
 
     geometry_msgs::msg::Quaternion odom_quat =
         createQuaternionMsgFromYaw(theta_);
@@ -301,9 +299,9 @@ class ScoutMessenger {
     odom_msg.pose.pose.position.z = 0.0;
     odom_msg.pose.pose.orientation = odom_quat;
 
-    odom_msg.twist.twist.linear.x = linear_speed;
-    odom_msg.twist.twist.linear.y = lateral_speed;
-    odom_msg.twist.twist.angular.z = angular_speed;
+    odom_msg.twist.twist.linear.x = step.linear_speed;
+    odom_msg.twist.twist.linear.y = step.lateral_speed;
+    odom_msg.twist.twist.angular.z = step.angular_speed;
 
     odom_pub_->publish(odom_msg);
   }
