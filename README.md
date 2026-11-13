@@ -20,13 +20,13 @@ This repository contains minimal packages to control the scout robot using ROS.
 
 1. Clone the packages into your colcon workspace and compile
 
-    (the following instructions assume your catkin workspace is at: ~/ros2_ws/src)
+    (the following instructions assume your colcon workspace is at: ~/ros2_ws/src)
 
     ```
     $ mkdir -p ~/ros2_ws/src
     $ cd ~/ros2_ws/src
-    $ git clone https://github.com/agilexrobotics/ugv_sdk.git
-    $ git clone https://github.com/agilexrobotics/scout_ros2.git
+    $ git clone https://github.com/westonrobot/ugv_sdk.git
+    $ git clone https://github.com/AgilexOpensource/scout_ros2.git
     $ cd ..
     $ colcon build
     ```
@@ -39,11 +39,15 @@ This repository contains minimal packages to control the scout robot using ROS.
     sudo ip link set can0 up type can bitrate 500000
     ```
 
-* Start the base node for the Scout robot
+* Start the base node with the launch file for your Scout model
 
     ```
     $ ros2 launch scout_base scout_base.launch.py
     ```
+
+    * `scout_base.launch.py`: Scout
+    * `scout_mini_base.launch.py`: Scout Mini
+    * `scout_mini_omni_base.launch.py`: Scout Mini Omni
 
 * Start the keyboard tele-op node
 
