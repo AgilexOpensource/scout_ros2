@@ -40,6 +40,9 @@ class ScoutMessenger {
   void SetOdometryLinearVelocitySign(int sign) {
     odom_linear_velocity_sign_ = ValidateOdometryLinearVelocitySign(sign);
   }
+  void SetCommandLateralVelocitySign(int sign) {
+    cmd_lateral_velocity_sign_ = ValidateCommandLateralVelocitySign(sign);
+  }
 
   void SetSimulationMode(int loop_rate) {
     simulated_robot_ = true;
@@ -160,6 +163,7 @@ class ScoutMessenger {
   std::string base_frame_;
   std::string odom_topic_name_;
   int odom_linear_velocity_sign_ = 1;
+  int cmd_lateral_velocity_sign_ = 1;
 
   bool simulated_robot_ = false;
   int sim_control_rate_ = 50;
@@ -210,7 +214,8 @@ class ScoutMessenger {
                              bool> = true>
   void SetScoutMotionCommand(std::shared_ptr<T> base,
                              const geometry_msgs::msg::Twist::SharedPtr &msg) {
-    base->SetMotionCommand(msg->linear.x, msg->angular.z, msg->linear.y);
+    base->SetMotionCommand(msg->linear.x, msg->angular.z,
+                           cmd_lateral_velocity_sign_ * msg->linear.y);
   }
 
   void LightCmdCallback(const scout_msgs::msg::ScoutLightCmd::SharedPtr msg) {

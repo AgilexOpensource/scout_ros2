@@ -16,6 +16,7 @@ bool Near(double actual, double expected) {
 
 int main() {
   using westonrobot::ComputeOdometryStep;
+  using westonrobot::ValidateCommandLateralVelocitySign;
   using westonrobot::ValidateOdometryLinearVelocitySign;
   try {
     Check(ValidateOdometryLinearVelocitySign(1) == 1, "default sign");
@@ -28,6 +29,17 @@ int main() {
         rejected = true;
       }
       Check(rejected, "invalid sign accepted");
+    }
+    Check(ValidateCommandLateralVelocitySign(1) == 1, "default lateral sign");
+    Check(ValidateCommandLateralVelocitySign(-1) == -1, "reversed lateral sign");
+    for (int sign : {0, 2, -2}) {
+      bool rejected = false;
+      try {
+        ValidateCommandLateralVelocitySign(sign);
+      } catch (const std::invalid_argument&) {
+        rejected = true;
+      }
+      Check(rejected, "invalid lateral sign accepted");
     }
     const auto forward = ComputeOdometryStep(0.02, 0.0, 0.0, 0.0, 1.0);
     Check(Near(forward.dx, 0.02) && Near(forward.linear_speed, 0.02),
@@ -59,7 +71,7 @@ int main() {
     Check(Near(stationary.dx, 0.0) && Near(stationary.dy, 0.0) &&
               Near(stationary.dtheta, 0.0),
           "zero time step");
-    std::cout << "14 odometry checks passed\n";
+    std::cout << "19 odometry checks passed\n";
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return 1;

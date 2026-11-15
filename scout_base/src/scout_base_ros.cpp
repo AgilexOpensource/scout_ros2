@@ -28,6 +28,12 @@ ScoutBaseRos::ScoutBaseRos(std::string node_name)
       "Longitudinal odometry feedback sign (+1 or -1); commands are unchanged";
   this->declare_parameter("odom_linear_velocity_sign", rclcpp::ParameterValue(1),
                           odometry_sign_descriptor);
+  rcl_interfaces::msg::ParameterDescriptor lateral_sign_descriptor;
+  lateral_sign_descriptor.read_only = true;
+  lateral_sign_descriptor.description =
+      "Lateral command sign (+1 or -1) for omni bases; feedback is unchanged";
+  this->declare_parameter("cmd_lateral_velocity_sign", rclcpp::ParameterValue(1),
+                          lateral_sign_descriptor);
 
   this->declare_parameter("is_scout_mini", rclcpp::ParameterValue(false));
   this->declare_parameter("is_omni_wheel", rclcpp::ParameterValue(false));
@@ -48,6 +54,9 @@ void ScoutBaseRos::LoadParameters() {
   this->get_parameter_or<int>("odom_linear_velocity_sign",
                              odom_linear_velocity_sign_, 1);
   ValidateOdometryLinearVelocitySign(odom_linear_velocity_sign_);
+  this->get_parameter_or<int>("cmd_lateral_velocity_sign",
+                             cmd_lateral_velocity_sign_, 1);
+  ValidateCommandLateralVelocitySign(cmd_lateral_velocity_sign_);
 
   this->get_parameter_or<bool>("is_scout_mini", is_scout_mini_, false);
   this->get_parameter_or<bool>("is_omni_wheel", is_omni_wheel_, false);
@@ -61,6 +70,8 @@ void ScoutBaseRos::LoadParameters() {
   std::cout << "- base frame name: " << base_frame_ << std::endl;
   std::cout << "- odom topic name: " << odom_topic_name_ << std::endl;
   std::cout << "- odom linear velocity sign: " << odom_linear_velocity_sign_
+            << std::endl;
+  std::cout << "- cmd lateral velocity sign: " << cmd_lateral_velocity_sign_
             << std::endl;
 
   std::cout << "- is scout mini: " << std::boolalpha << is_scout_mini_
@@ -183,6 +194,7 @@ void ScoutBaseRos::Run() {
     messenger->SetBaseFrame(base_frame_);
     messenger->SetOdometryTopicName(odom_topic_name_);
     messenger->SetOdometryLinearVelocitySign(odom_linear_velocity_sign_);
+    messenger->SetCommandLateralVelocitySign(cmd_lateral_velocity_sign_);
     if (simulated_robot_) messenger->SetSimulationMode(sim_control_rate_);
 
     // connect to robot and setup ROS subscription

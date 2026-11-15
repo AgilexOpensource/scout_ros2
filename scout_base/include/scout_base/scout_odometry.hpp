@@ -13,6 +13,13 @@ inline int ValidateOdometryLinearVelocitySign(int sign) {
   return sign;
 }
 
+inline int ValidateCommandLateralVelocitySign(int sign) {
+  if (sign != 1 && sign != -1) {
+    throw std::invalid_argument("cmd_lateral_velocity_sign must be +1 or -1");
+  }
+  return sign;
+}
+
 struct OdometryStep {
   double linear_speed;
   double lateral_speed;
