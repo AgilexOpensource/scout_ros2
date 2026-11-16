@@ -1,80 +1,121 @@
-# ROS2 Packages for Scout Mobile Robot
+# scout_ros2
 
-## Packages
+[中文](README.zh-CN.md)
 
-This repository contains minimal packages to control the scout robot using ROS. 
+ROS 2 packages for the AgileX Scout mobile bases. This branch targets ROS 2 Humble.
 
-* scout_base: a ROS wrapper around [ugv_sdk](https://github.com/westonrobot/ugv_sdk) to monitor and control the scout robot
-* scout_description: URDF model for the mobile base
-* scout_msgs: scout related message definitions
+| Package | Description |
+| --- | --- |
+| scout_base | ROS 2 driver node built on [ugv_sdk](https://github.com/westonrobot/ugv_sdk): sends motion commands and publishes odometry and status |
+| scout_description | URDF model of the mobile base |
+| scout_msgs | Scout message definitions |
 
-## Stopping the Node
+## Supported hardware
 
-On SIGINT or SIGTERM, the state/control loop stops when the ROS context closes, and the node releases its ROS resources without recreating an executor after shutdown. Stop teleoperation command sources and bring the base to rest before stopping the node; a clean process exit is not a hardware emergency stop.
+- Scout
+- Scout Mini
+- Scout Mini Omni
 
-## Longitudinal Odometry Feedback
+Both the V1 and V2 protocols are supported, over CAN only. The protocol version is detected automatically; choose the launch file that matches your base.
 
-`odom_linear_velocity_sign` is a startup-only, read-only integer parameter. Its default is `+1`; only `+1` and `-1` are accepted. Use `-1` only after verifying that the hardware longitudinal feedback is reversed relative to the robot's forward direction. It adjusts the body-frame longitudinal velocity before odometry integration and the published odometry twist; the TF pose uses the same corrected integration. Lateral and yaw feedback are unchanged. This is not a world-X reflection: forward travel at nonzero yaw also affects world Y.
+## Installation
 
-Motion commands, raw `scout_status` velocities, CAN feedback rates and the 50 Hz state/odometry loop are unchanged. Verify command direction independently; do not invert commands merely because odometry feedback is reversed. The verified Lookie Trio Revo2 profile sets this parameter to `-1`; other profiles retain the default. Restarting the driver resets the odometry origin.
+Clone the packages into a colcon workspace and build:
 
-## Lateral Command Direction
+```bash
+mkdir -p ~/ros2_ws/src && cd ~/ros2_ws/src
+git clone https://github.com/westonrobot/ugv_sdk.git
+git clone -b humble https://github.com/AgilexOpensource/scout_ros2.git
+cd ~/ros2_ws
+source /opt/ros/humble/setup.bash
+colcon build
+source install/setup.bash
+```
 
-`cmd_lateral_velocity_sign` is a startup-only, read-only integer parameter for omni bases (`is_omni_wheel: true`). Its default is `+1`; only `+1` and `-1` are accepted. Use `-1` only after verifying that a positive `cmd_vel` `linear.y` moves the robot to its right. It multiplies the commanded lateral velocity before it is sent to the base; longitudinal and yaw commands and all feedback are unchanged. The verified Lookie Trio Revo2 profile sets this parameter to `-1` (positive `linear.y` moved the base right while the lateral feedback correctly reported the motion as negative).
+## Usage
 
-## 纵向里程计反馈
+1. Bring up the CAN interface:
 
-`odom_linear_velocity_sign` 是启动时设置的只读整数参数，默认 `+1`，仅接受 `+1` 或 `-1`。确认硬件纵向反馈与机器人前向相反后，才使用 `-1`。修正作用于进入积分前的机体纵向速度及里程计 twist，TF 位姿使用同一积分结果；横向和 yaw 反馈不变。这不是世界 X 镜像，非零 yaw 下的前进也会改变世界 Y。
+   ```bash
+   sudo ip link set can0 up type can bitrate 500000
+   ```
 
-运动命令、`scout_status` 原始速度、CAN 反馈频率及 50 Hz 状态/里程计循环均不变。命令方向必须独立确认，不能因为里程计反向就同时反转命令。已验证的 Lookie Trio Revo2 配置设为 `-1`，其他配置保持默认。驱动重启会重置里程计原点。
+2. Start the driver with the launch file for your base:
 
-## 横向运动命令方向
+   ```bash
+   ros2 launch scout_base scout_base.launch.py
+   ```
 
-`cmd_lateral_velocity_sign` 是启动时设置的只读整数参数，仅用于全向底盘（`is_omni_wheel: true`），默认 `+1`，仅接受 `+1` 或 `-1`。确认 `cmd_vel` 的 `linear.y` 为正时机器人向右移动后，才使用 `-1`。它在下发前乘到横向速度命令上；纵向、yaw 命令以及所有反馈都不变。已验证的 Lookie Trio Revo2 配置设为 `-1`（`linear.y` 为正时底盘向右移动，而横向反馈正确地报告为负）。
+   | Launch file | Base |
+   | --- | --- |
+   | `scout_base.launch.py` | Scout |
+   | `scout_mini_base.launch.py` | Scout Mini |
+   | `scout_mini_omni_base.launch.py` | Scout Mini Omni |
 
-## Supported Hardware
+3. Drive the base, for example with the keyboard:
 
-* Scout
-* Scout Mini
-* Scout Mini Omni
+   ```bash
+   ros2 run teleop_twist_keyboard teleop_twist_keyboard
+   ```
 
-**Note:** Both V1 and V2 protocols are supported by this package (only with CAN interface). You don't have to specify the protocol version when launching the base node but you need to use the right launch file for your specific Scout model.  
+## Interfaces
 
-## Basic usage of the ROS packages
+| Topic | Type | Direction | Description |
+| --- | --- | --- | --- |
+| `/cmd_vel` | `geometry_msgs/msg/Twist` | Subscribed | Motion command. `linear.y` is used only by omni bases |
+| `/light_control` | `scout_msgs/msg/ScoutLightCmd` | Subscribed | Light command |
+| `odom` | `nav_msgs/msg/Odometry` | Published | Odometry; the name is set by `odom_topic_name` |
+| `/scout_status` | `scout_msgs/msg/ScoutStatus` | Published | Base status and raw velocities |
+| `/rc_status` | `scout_msgs/msg/ScoutRCState` | Published | Remote controller state |
 
-1. Clone the packages into your colcon workspace and compile
+The node also broadcasts the TF transform `odom_frame` → `base_frame`.
 
-    (the following instructions assume your colcon workspace is at: ~/ros2_ws/src)
+## Parameters
 
-    ```
-    $ mkdir -p ~/ros2_ws/src
-    $ cd ~/ros2_ws/src
-    $ git clone https://github.com/westonrobot/ugv_sdk.git
-    $ git clone https://github.com/AgilexOpensource/scout_ros2.git
-    $ cd ..
-    $ colcon build
-    ```
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `port_name` | `can0` | CAN interface name |
+| `odom_frame` | `odom` | Odometry frame id |
+| `base_frame` | `base_link` | Base frame id |
+| `odom_topic_name` | `odom` | Odometry topic name |
+| `is_scout_mini` | `false` | Scout Mini base |
+| `is_omni_wheel` | `false` | Scout Mini Omni base |
+| `simulated_robot` | `false` | Simulation mode: motion and light commands are not sent to the base |
+| `control_rate` | `50` | Loop rate in simulation mode, Hz |
+| `odom_linear_velocity_sign` | `1` | Sign of the longitudinal odometry feedback, see below |
+| `cmd_lateral_velocity_sign` | `1` | Sign of the lateral command on omni bases, see below |
 
-2. Launch ROS nodes
+The launch files set `is_scout_mini` and `is_omni_wheel` for their base and expose every parameter except the two sign parameters as launch arguments. Set the sign parameters in a parameter file or on the command line:
 
-* Enable CAN module
+```bash
+ros2 run scout_base scout_base_node --ros-args \
+  -p is_scout_mini:=true -p is_omni_wheel:=true \
+  -p odom_linear_velocity_sign:=-1 -p cmd_lateral_velocity_sign:=-1
+```
 
-    ```
-    sudo ip link set can0 up type can bitrate 500000
-    ```
+Both sign parameters are read-only integers that are read at startup. Only `1` and `-1` are accepted.
 
-* Start the base node with the launch file for your Scout model
+### odom_linear_velocity_sign
 
-    ```
-    $ ros2 launch scout_base scout_base.launch.py
-    ```
+Use `-1` only after verifying that the hardware reports longitudinal feedback opposite to the robot's forward direction.
 
-    * `scout_base.launch.py`: Scout
-    * `scout_mini_base.launch.py`: Scout Mini
-    * `scout_mini_omni_base.launch.py`: Scout Mini Omni
+- The sign is applied to the body-frame longitudinal velocity before odometry integration. The odometry pose, the odometry twist and the TF pose all use the corrected value.
+- Lateral and yaw feedback, motion commands, the raw velocities in `/scout_status`, the CAN feedback rates and the 50 Hz state and odometry loop are unchanged.
+- It is not a reflection of the world X axis: forward travel at a nonzero yaw also changes world Y.
+- Verify the command direction separately. Do not invert commands only because the odometry feedback is reversed.
+- Restarting the driver resets the odometry origin.
 
-* Start the keyboard tele-op node
+### cmd_lateral_velocity_sign
 
-    ```
-    $ ros2 run teleop_twist_keyboard teleop_twist_keyboard
-    ```
+Applies to omni bases (`is_omni_wheel: true`). Use `-1` only after verifying that a positive `cmd_vel` `linear.y` moves the robot to its right.
+
+- The sign multiplies the commanded lateral velocity before it is sent to the base.
+- Longitudinal and yaw commands and all feedback are unchanged.
+
+## Stopping the node
+
+On SIGINT or SIGTERM the state and control loop stops when the ROS context closes, and the node releases its ROS resources. Stop the command sources and bring the base to rest before stopping the node. A clean process exit is not a hardware emergency stop.
+
+## License
+
+See [LICENSE](LICENSE).
