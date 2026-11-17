@@ -64,7 +64,7 @@ source install/setup.bash
 | --- | --- | --- | --- |
 | `/cmd_vel` | `geometry_msgs/msg/Twist` | Subscribed | Motion command. `linear.y` is used only by omni bases |
 | `/light_control` | `scout_msgs/msg/ScoutLightCmd` | Subscribed | Light command |
-| `odom` | `nav_msgs/msg/Odometry` | Published | Odometry; the name is set by `odom_topic_name` |
+| `odom` | `nav_msgs/msg/Odometry` | Published | Odometry, only while the CAN motion state is fresh; the name is set by `odom_topic_name` |
 | `/scout_status` | `scout_msgs/msg/ScoutStatus` | Published | Base status and raw velocities |
 | `/rc_status` | `scout_msgs/msg/ScoutRCState` | Published | Remote controller state |
 
@@ -84,8 +84,9 @@ The node also broadcasts the TF transform `odom_frame` → `base_frame`.
 | `control_rate` | `50` | Loop rate in simulation mode, Hz |
 | `odom_linear_velocity_sign` | `1` | Sign of the longitudinal odometry feedback, see below |
 | `cmd_lateral_velocity_sign` | `1` | Sign of the lateral command on omni bases, see below |
+| `feedback_timeout` | `0.5` | Seconds without CAN motion state before odometry stops, see below |
 
-The launch files set `is_scout_mini` and `is_omni_wheel` for their base and expose every parameter except the two sign parameters as launch arguments. Set the sign parameters in a parameter file or on the command line:
+The launch files set `is_scout_mini` and `is_omni_wheel` for their base and expose every parameter except the two sign parameters and `feedback_timeout` as launch arguments. Set these in a parameter file or on the command line:
 
 ```bash
 ros2 run scout_base scout_base_node --ros-args \
@@ -111,6 +112,15 @@ Applies to omni bases (`is_omni_wheel: true`). Use `-1` only after verifying tha
 
 - The sign multiplies the commanded lateral velocity before it is sent to the base.
 - Longitudinal and yaw commands and all feedback are unchanged.
+
+### feedback_timeout
+
+The SDK keeps the last received state after the CAN bus goes silent (cable unplugged, base powered off). Odometry and its TF are published only while the motion state was received within `feedback_timeout` seconds, so consumers such as kstone see the base as stale instead of a pose that keeps drifting with the last velocity.
+
+- The log shows `Chassis feedback lost` and `Chassis feedback recovered`.
+- The time without feedback is not integrated: after recovery the pose continues from where it stopped.
+- `/scout_status` and `/rc_status` are still published from the cached state.
+- Read-only, positive number, read at startup.
 
 ## Stopping the node
 

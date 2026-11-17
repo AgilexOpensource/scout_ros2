@@ -35,6 +35,13 @@ ScoutBaseRos::ScoutBaseRos(std::string node_name)
   this->declare_parameter("cmd_lateral_velocity_sign", rclcpp::ParameterValue(1),
                           lateral_sign_descriptor);
 
+  rcl_interfaces::msg::ParameterDescriptor feedback_timeout_descriptor;
+  feedback_timeout_descriptor.read_only = true;
+  feedback_timeout_descriptor.description =
+      "Seconds without CAN motion state before odometry stops publishing";
+  this->declare_parameter("feedback_timeout", rclcpp::ParameterValue(0.5),
+                          feedback_timeout_descriptor);
+
   this->declare_parameter("is_scout_mini", rclcpp::ParameterValue(false));
   this->declare_parameter("is_omni_wheel", rclcpp::ParameterValue(false));
 
@@ -57,6 +64,8 @@ void ScoutBaseRos::LoadParameters() {
   this->get_parameter_or<int>("cmd_lateral_velocity_sign",
                              cmd_lateral_velocity_sign_, 1);
   ValidateCommandLateralVelocitySign(cmd_lateral_velocity_sign_);
+  this->get_parameter_or<double>("feedback_timeout", feedback_timeout_, 0.5);
+  ValidateFeedbackTimeout(feedback_timeout_);
 
   this->get_parameter_or<bool>("is_scout_mini", is_scout_mini_, false);
   this->get_parameter_or<bool>("is_omni_wheel", is_omni_wheel_, false);
@@ -73,6 +82,7 @@ void ScoutBaseRos::LoadParameters() {
             << std::endl;
   std::cout << "- cmd lateral velocity sign: " << cmd_lateral_velocity_sign_
             << std::endl;
+  std::cout << "- feedback timeout: " << feedback_timeout_ << " s" << std::endl;
 
   std::cout << "- is scout mini: " << std::boolalpha << is_scout_mini_
             << std::endl;
@@ -159,6 +169,7 @@ void ScoutBaseRos::Run() {
     messenger->SetBaseFrame(base_frame_);
     messenger->SetOdometryTopicName(odom_topic_name_);
     messenger->SetOdometryLinearVelocitySign(odom_linear_velocity_sign_);
+    messenger->SetFeedbackTimeout(feedback_timeout_);
     if (simulated_robot_) messenger->SetSimulationMode(sim_control_rate_);
 
     // connect to robot and setup ROS subscription
@@ -194,6 +205,7 @@ void ScoutBaseRos::Run() {
     messenger->SetBaseFrame(base_frame_);
     messenger->SetOdometryTopicName(odom_topic_name_);
     messenger->SetOdometryLinearVelocitySign(odom_linear_velocity_sign_);
+    messenger->SetFeedbackTimeout(feedback_timeout_);
     messenger->SetCommandLateralVelocitySign(cmd_lateral_velocity_sign_);
     if (simulated_robot_) messenger->SetSimulationMode(sim_control_rate_);
 

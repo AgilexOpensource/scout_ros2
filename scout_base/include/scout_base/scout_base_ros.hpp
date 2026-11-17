@@ -33,6 +33,7 @@ class ScoutBaseRos : public rclcpp::Node {
   std::string odom_topic_name_;
   int odom_linear_velocity_sign_ = 1;
   int cmd_lateral_velocity_sign_ = 1;
+  double feedback_timeout_ = 0.5;
 
   bool is_scout_mini_ = false;
   bool is_omni_wheel_ = false;

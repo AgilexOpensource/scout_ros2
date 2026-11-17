@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
@@ -16,6 +17,8 @@ bool Near(double actual, double expected) {
 
 int main() {
   using westonrobot::ComputeOdometryStep;
+  using westonrobot::IsFeedbackFresh;
+  using westonrobot::ValidateFeedbackTimeout;
   using westonrobot::ValidateCommandLateralVelocitySign;
   using westonrobot::ValidateOdometryLinearVelocitySign;
   try {
@@ -71,7 +74,25 @@ int main() {
     Check(Near(stationary.dx, 0.0) && Near(stationary.dy, 0.0) &&
               Near(stationary.dtheta, 0.0),
           "zero time step");
-    std::cout << "19 odometry checks passed\n";
+    using Clock = std::chrono::steady_clock;
+    const Clock::time_point now{std::chrono::seconds(100)};
+    Check(IsFeedbackFresh(now - std::chrono::milliseconds(20), now, 0.5),
+          "recent feedback is fresh");
+    Check(!IsFeedbackFresh(now - std::chrono::milliseconds(600), now, 0.5),
+          "old feedback is stale");
+    Check(!IsFeedbackFresh(Clock::time_point{}, now, 0.5),
+          "no feedback yet is stale");
+    Check(ValidateFeedbackTimeout(0.5) == 0.5, "valid feedback timeout");
+    for (double timeout : {0.0, -1.0, std::nan("")}) {
+      bool rejected = false;
+      try {
+        ValidateFeedbackTimeout(timeout);
+      } catch (const std::invalid_argument&) {
+        rejected = true;
+      }
+      Check(rejected, "invalid feedback timeout accepted");
+    }
+    std::cout << "26 odometry checks passed\n";
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return 1;

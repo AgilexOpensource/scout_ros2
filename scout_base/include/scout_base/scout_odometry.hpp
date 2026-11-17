@@ -1,6 +1,7 @@
 #ifndef SCOUT_ODOMETRY_HPP
 #define SCOUT_ODOMETRY_HPP
 
+#include <chrono>
 #include <cmath>
 #include <stdexcept>
 
@@ -18,6 +19,20 @@ inline int ValidateCommandLateralVelocitySign(int sign) {
     throw std::invalid_argument("cmd_lateral_velocity_sign must be +1 or -1");
   }
   return sign;
+}
+
+inline double ValidateFeedbackTimeout(double timeout_s) {
+  if (!std::isfinite(timeout_s) || timeout_s <= 0.0) {
+    throw std::invalid_argument("feedback_timeout must be a positive number");
+  }
+  return timeout_s;
+}
+
+// The SDK keeps the last state after CAN goes silent, so its receive stamp
+// tells whether the motion state is still being updated.
+template <typename TimePoint>
+inline bool IsFeedbackFresh(TimePoint stamp, TimePoint now, double timeout_s) {
+  return std::chrono::duration<double>(now - stamp).count() <= timeout_s;
 }
 
 struct OdometryStep {

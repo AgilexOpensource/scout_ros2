@@ -43,6 +43,9 @@ class ScoutMessenger {
   void SetCommandLateralVelocitySign(int sign) {
     cmd_lateral_velocity_sign_ = ValidateCommandLateralVelocitySign(sign);
   }
+  void SetFeedbackTimeout(double timeout_s) {
+    feedback_timeout_ = ValidateFeedbackTimeout(timeout_s);
+  }
 
   void SetSimulationMode(int loop_rate) {
     simulated_robot_ = true;
@@ -148,8 +151,25 @@ class ScoutMessenger {
     status_pub_->publish(status_msg);
     rc_state_pub_->publish(rc_status_msg);
 
-    // publish odometry and tf
-    PublishOdometryToROS(state.motion_state, dt);
+    // Odometry only integrates fresh motion state; a stale gap is skipped
+    // rather than integrated with the last cached velocity.
+    const bool fresh =
+        IsFeedbackFresh(state.time_stamp, SdkClock::now(), feedback_timeout_);
+    if (fresh != feedback_alive_) {
+      feedback_alive_ = fresh;
+      if (fresh) {
+        RCLCPP_INFO(node_->get_logger(),
+                    "Chassis feedback %s, publishing odometry",
+                    feedback_seen_ ? "recovered" : "received");
+      } else {
+        RCLCPP_WARN(node_->get_logger(),
+                    "Chassis feedback lost (no CAN state for %.2f s), "
+                    "odometry paused",
+                    feedback_timeout_);
+      }
+      feedback_seen_ = true;
+    }
+    if (fresh) PublishOdometryToROS(state.motion_state, dt);
 
     // record time for next integration
     last_time_ = current_time_;
@@ -164,6 +184,9 @@ class ScoutMessenger {
   std::string odom_topic_name_;
   int odom_linear_velocity_sign_ = 1;
   int cmd_lateral_velocity_sign_ = 1;
+  double feedback_timeout_ = 0.5;
+  bool feedback_alive_ = false;
+  bool feedback_seen_ = false;
 
   bool simulated_robot_ = false;
   int sim_control_rate_ = 50;

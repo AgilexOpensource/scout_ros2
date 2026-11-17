@@ -64,7 +64,7 @@ source install/setup.bash
 | --- | --- | --- | --- |
 | `/cmd_vel` | `geometry_msgs/msg/Twist` | 订阅 | 运动指令。`linear.y` 仅全向底盘使用 |
 | `/light_control` | `scout_msgs/msg/ScoutLightCmd` | 订阅 | 灯光指令 |
-| `odom` | `nav_msgs/msg/Odometry` | 发布 | 里程计；话题名由 `odom_topic_name` 设置 |
+| `odom` | `nav_msgs/msg/Odometry` | 发布 | 里程计，仅在 CAN 运动状态新鲜时发布；话题名由 `odom_topic_name` 设置 |
 | `/scout_status` | `scout_msgs/msg/ScoutStatus` | 发布 | 底盘状态和原始速度 |
 | `/rc_status` | `scout_msgs/msg/ScoutRCState` | 发布 | 遥控器状态 |
 
@@ -84,8 +84,9 @@ source install/setup.bash
 | `control_rate` | `50` | 仿真模式下的循环频率，Hz |
 | `odom_linear_velocity_sign` | `1` | 纵向里程计反馈的符号，见下文 |
 | `cmd_lateral_velocity_sign` | `1` | 全向底盘横向指令的符号，见下文 |
+| `feedback_timeout` | `0.5` | 超过该秒数未收到 CAN 运动状态时停发里程计，见下文 |
 
-各 launch 文件已按对应底盘设置 `is_scout_mini` 和 `is_omni_wheel`，并把除两个符号参数以外的参数都开放为启动参数。符号参数需通过参数文件或命令行设置：
+各 launch 文件已按对应底盘设置 `is_scout_mini` 和 `is_omni_wheel`，并把除两个符号参数和 `feedback_timeout` 以外的参数都开放为启动参数。这三个参数需通过参数文件或命令行设置：
 
 ```bash
 ros2 run scout_base scout_base_node --ros-args \
@@ -111,6 +112,15 @@ ros2 run scout_base scout_base_node --ros-args \
 
 - 符号在下发前乘到横向速度指令上。
 - 纵向和 yaw 指令以及所有反馈都不变。
+
+### feedback_timeout
+
+CAN 总线没有数据后（线缆拔出、底盘断电），SDK 仍保留最后收到的状态。只有在 `feedback_timeout` 秒内收到过运动状态时才发布里程计及其 TF，这样 kstone 等使用方会看到底盘反馈过期，而不是一个按最后速度不断漂移的位姿。
+
+- 日志显示 `Chassis feedback lost` 和 `Chassis feedback recovered`。
+- 无反馈期间不积分：恢复后位姿从停下的位置继续。
+- `/scout_status` 和 `/rc_status` 仍按缓存状态发布。
+- 只读，正数，启动时读取。
 
 ## 停止节点
 
