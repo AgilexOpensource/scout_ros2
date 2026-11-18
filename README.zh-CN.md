@@ -82,8 +82,8 @@ source install/setup.bash
 | `is_omni_wheel` | `false` | Scout Mini Omni 底盘 |
 | `simulated_robot` | `false` | 仿真模式：运动和灯光指令不下发到底盘 |
 | `control_rate` | `50` | 仿真模式下的循环频率，Hz |
-| `odom_linear_velocity_sign` | `1` | 纵向里程计反馈的符号，见下文 |
-| `cmd_lateral_velocity_sign` | `1` | 全向底盘横向指令的符号，见下文 |
+| `cmd_velocity_signs` | `[1, 1, 1]` | 运动指令各轴 `[x, y, wz]` 的符号，见下文 |
+| `odom_velocity_signs` | `[1, 1, 1]` | 里程计反馈各轴 `[x, y, wz]` 的符号，见下文 |
 | `feedback_timeout` | `0.5` | 超过该秒数未收到 CAN 运动状态时停发里程计，见下文 |
 
 各 launch 文件已按对应底盘设置 `is_scout_mini` 和 `is_omni_wheel`，并把除两个符号参数和 `feedback_timeout` 以外的参数都开放为启动参数。这三个参数需通过参数文件或命令行设置：
@@ -91,27 +91,18 @@ source install/setup.bash
 ```bash
 ros2 run scout_base scout_base_node --ros-args \
   -p is_scout_mini:=true -p is_omni_wheel:=true \
-  -p odom_linear_velocity_sign:=-1 -p cmd_lateral_velocity_sign:=-1
+  -p cmd_velocity_signs:='[1, -1, 1]' -p odom_velocity_signs:='[-1, 1, 1]'
 ```
 
-两个符号参数都是只读整数，只在启动时读取，仅接受 `1` 和 `-1`。
+### 速度符号
 
-### odom_linear_velocity_sign
+底盘因电机接线或固件导致某个轴反向时使用。两个参数都是只读的三元整数列表 `[x, y, wz]`（对应 `linear.x`、`linear.y`、`angular.z`），启动时读取。每项只能是 `1` 或 `-1`，否则节点启动失败。
 
-确认硬件上报的纵向反馈与机器人前进方向相反后，才使用 `-1`。
+- `cmd_velocity_signs` 在下发前乘到 `/cmd_vel` 上。`y` 只对全向底盘生效。
+- `odom_velocity_signs` 在积分前乘到机体系速度反馈上。里程计位姿、里程计 twist 和 TF 位姿都使用修正后的值。它不是世界坐标轴的镜像：修正发生在机体系转到世界系之前。
+- `/scout_status` 中的原始速度不变。
 
-- 符号作用于积分前的机体纵向速度。里程计位姿、里程计 twist 和 TF 位姿都使用修正后的值。
-- 横向和 yaw 反馈、运动指令、`/scout_status` 中的原始速度、CAN 反馈频率以及 50 Hz 的状态和里程计循环都不变。
-- 这不是世界 X 轴的镜像：yaw 不为零时前进也会改变世界 Y。
-- 指令方向需单独确认，不能仅因里程计反馈反向就反转指令。
-- 重启驱动会重置里程计原点。
-
-### cmd_lateral_velocity_sign
-
-用于全向底盘（`is_omni_wheel: true`）。确认 `cmd_vel` 的 `linear.y` 为正时机器人向右移动后，才使用 `-1`。
-
-- 符号在下发前乘到横向速度指令上。
-- 纵向和 yaw 指令以及所有反馈都不变。
+每个轴的指令和反馈要分别确认：发一个小的正值观察机器人（前进、向左、俯视逆时针为正），再对比里程计 twist，只翻转出错的一侧。重启驱动会重置里程计原点。
 
 ### feedback_timeout
 

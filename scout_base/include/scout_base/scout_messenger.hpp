@@ -37,11 +37,11 @@ class ScoutMessenger {
   void SetOdometryFrame(std::string frame) { odom_frame_ = frame; }
   void SetBaseFrame(std::string frame) { base_frame_ = frame; }
   void SetOdometryTopicName(std::string name) { odom_topic_name_ = name; }
-  void SetOdometryLinearVelocitySign(int sign) {
-    odom_linear_velocity_sign_ = ValidateOdometryLinearVelocitySign(sign);
+  void SetCommandVelocitySigns(const VelocitySigns &signs) {
+    cmd_signs_ = signs;
   }
-  void SetCommandLateralVelocitySign(int sign) {
-    cmd_lateral_velocity_sign_ = ValidateCommandLateralVelocitySign(sign);
+  void SetOdometryVelocitySigns(const VelocitySigns &signs) {
+    odom_signs_ = signs;
   }
   void SetFeedbackTimeout(double timeout_s) {
     feedback_timeout_ = ValidateFeedbackTimeout(timeout_s);
@@ -182,8 +182,8 @@ class ScoutMessenger {
   std::string odom_frame_;
   std::string base_frame_;
   std::string odom_topic_name_;
-  int odom_linear_velocity_sign_ = 1;
-  int cmd_lateral_velocity_sign_ = 1;
+  VelocitySigns cmd_signs_;
+  VelocitySigns odom_signs_;
   double feedback_timeout_ = 0.5;
   bool feedback_alive_ = false;
   bool feedback_seen_ = false;
@@ -229,7 +229,8 @@ class ScoutMessenger {
                              bool> = true>
   void SetScoutMotionCommand(std::shared_ptr<T> base,
                              const geometry_msgs::msg::Twist::SharedPtr &msg) {
-    base->SetMotionCommand(msg->linear.x, msg->angular.z);
+    base->SetMotionCommand(cmd_signs_.x * msg->linear.x,
+                           cmd_signs_.wz * msg->angular.z);
   }
 
   template <typename T,
@@ -237,8 +238,9 @@ class ScoutMessenger {
                              bool> = true>
   void SetScoutMotionCommand(std::shared_ptr<T> base,
                              const geometry_msgs::msg::Twist::SharedPtr &msg) {
-    base->SetMotionCommand(msg->linear.x, msg->angular.z,
-                           cmd_lateral_velocity_sign_ * msg->linear.y);
+    base->SetMotionCommand(cmd_signs_.x * msg->linear.x,
+                           cmd_signs_.wz * msg->angular.z,
+                           cmd_signs_.y * msg->linear.y);
   }
 
   void LightCmdCallback(const scout_msgs::msg::ScoutLightCmd::SharedPtr msg) {
@@ -295,7 +297,7 @@ class ScoutMessenger {
 
     const auto step = ComputeOdometryStep(linear_speed, lateral_speed,
                                           angular_speed, theta_, dt,
-                                          odom_linear_velocity_sign_);
+                                          odom_signs_);
     position_x_ += step.dx;
     position_y_ += step.dy;
     theta_ += step.dtheta;

@@ -3,22 +3,32 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 namespace westonrobot {
 
-inline int ValidateOdometryLinearVelocitySign(int sign) {
-  if (sign != 1 && sign != -1) {
-    throw std::invalid_argument("odom_linear_velocity_sign must be +1 or -1");
-  }
-  return sign;
-}
+// Per-axis signs for (linear.x, linear.y, angular.z) in the body frame.
+struct VelocitySigns {
+  int x = 1;
+  int y = 1;
+  int wz = 1;
+};
 
-inline int ValidateCommandLateralVelocitySign(int sign) {
-  if (sign != 1 && sign != -1) {
-    throw std::invalid_argument("cmd_lateral_velocity_sign must be +1 or -1");
+inline VelocitySigns ValidateVelocitySigns(const std::vector<int64_t> &values,
+                                           const std::string &name) {
+  if (values.size() != 3) {
+    throw std::invalid_argument(name + " must have 3 entries [x, y, wz]");
   }
-  return sign;
+  for (int64_t v : values) {
+    if (v != 1 && v != -1) {
+      throw std::invalid_argument(name + " entries must be +1 or -1");
+    }
+  }
+  return {static_cast<int>(values[0]), static_cast<int>(values[1]),
+          static_cast<int>(values[2])};
 }
 
 inline double ValidateFeedbackTimeout(double timeout_s) {
@@ -47,8 +57,11 @@ struct OdometryStep {
 inline OdometryStep ComputeOdometryStep(double linear_speed,
                                        double lateral_speed,
                                        double angular_speed, double yaw,
-                                       double dt, int linear_velocity_sign = 1) {
-  linear_speed *= ValidateOdometryLinearVelocitySign(linear_velocity_sign);
+                                       double dt,
+                                       const VelocitySigns &signs = {}) {
+  linear_speed *= signs.x;
+  lateral_speed *= signs.y;
+  angular_speed *= signs.wz;
   return {linear_speed, lateral_speed, angular_speed,
           (linear_speed * std::cos(yaw) - lateral_speed * std::sin(yaw)) * dt,
           (linear_speed * std::sin(yaw) + lateral_speed * std::cos(yaw)) * dt,

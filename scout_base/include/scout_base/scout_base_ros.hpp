@@ -15,6 +15,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include "scout_base/scout_odometry.hpp"
 #include "ugv_sdk/mobile_robot/scout_robot.hpp"
 
 namespace westonrobot {
@@ -31,8 +32,8 @@ class ScoutBaseRos : public rclcpp::Node {
   std::string odom_frame_;
   std::string base_frame_;
   std::string odom_topic_name_;
-  int odom_linear_velocity_sign_ = 1;
-  int cmd_lateral_velocity_sign_ = 1;
+  VelocitySigns cmd_signs_;
+  VelocitySigns odom_signs_;
   double feedback_timeout_ = 0.5;
 
   bool is_scout_mini_ = false;

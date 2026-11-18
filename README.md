@@ -82,8 +82,8 @@ The node also broadcasts the TF transform `odom_frame` → `base_frame`.
 | `is_omni_wheel` | `false` | Scout Mini Omni base |
 | `simulated_robot` | `false` | Simulation mode: motion and light commands are not sent to the base |
 | `control_rate` | `50` | Loop rate in simulation mode, Hz |
-| `odom_linear_velocity_sign` | `1` | Sign of the longitudinal odometry feedback, see below |
-| `cmd_lateral_velocity_sign` | `1` | Sign of the lateral command on omni bases, see below |
+| `cmd_velocity_signs` | `[1, 1, 1]` | Per-axis signs `[x, y, wz]` of the motion command, see below |
+| `odom_velocity_signs` | `[1, 1, 1]` | Per-axis signs `[x, y, wz]` of the odometry feedback, see below |
 | `feedback_timeout` | `0.5` | Seconds without CAN motion state before odometry stops, see below |
 
 The launch files set `is_scout_mini` and `is_omni_wheel` for their base and expose every parameter except the two sign parameters and `feedback_timeout` as launch arguments. Set these in a parameter file or on the command line:
@@ -91,27 +91,18 @@ The launch files set `is_scout_mini` and `is_omni_wheel` for their base and expo
 ```bash
 ros2 run scout_base scout_base_node --ros-args \
   -p is_scout_mini:=true -p is_omni_wheel:=true \
-  -p odom_linear_velocity_sign:=-1 -p cmd_lateral_velocity_sign:=-1
+  -p cmd_velocity_signs:='[1, -1, 1]' -p odom_velocity_signs:='[-1, 1, 1]'
 ```
 
-Both sign parameters are read-only integers that are read at startup. Only `1` and `-1` are accepted.
+### Velocity signs
 
-### odom_linear_velocity_sign
+Use these when a base's motor wiring or firmware reverses an axis. Each parameter is a read-only list of three integers `[x, y, wz]` (`linear.x`, `linear.y`, `angular.z`), read at startup. Each entry must be `1` or `-1`; anything else stops the node at startup.
 
-Use `-1` only after verifying that the hardware reports longitudinal feedback opposite to the robot's forward direction.
+- `cmd_velocity_signs` multiplies `/cmd_vel` before it is sent to the base. `y` is used only by omni bases.
+- `odom_velocity_signs` multiplies the body-frame velocity feedback before odometry integration. The odometry pose, the odometry twist and the TF pose use the corrected values. It is not a reflection of a world axis: the correction is applied before the body-to-world rotation.
+- The raw velocities in `/scout_status` are unchanged.
 
-- The sign is applied to the body-frame longitudinal velocity before odometry integration. The odometry pose, the odometry twist and the TF pose all use the corrected value.
-- Lateral and yaw feedback, motion commands, the raw velocities in `/scout_status`, the CAN feedback rates and the 50 Hz state and odometry loop are unchanged.
-- It is not a reflection of the world X axis: forward travel at a nonzero yaw also changes world Y.
-- Verify the command direction separately. Do not invert commands only because the odometry feedback is reversed.
-- Restarting the driver resets the odometry origin.
-
-### cmd_lateral_velocity_sign
-
-Applies to omni bases (`is_omni_wheel: true`). Use `-1` only after verifying that a positive `cmd_vel` `linear.y` moves the robot to its right.
-
-- The sign multiplies the commanded lateral velocity before it is sent to the base.
-- Longitudinal and yaw commands and all feedback are unchanged.
+Check the command and the feedback separately for each axis: send a small positive value and observe the robot (forward, left, counterclockwise seen from above are positive), then compare with the odometry twist. Flip only the side that is wrong. Restarting the driver resets the odometry origin.
 
 ### feedback_timeout
 

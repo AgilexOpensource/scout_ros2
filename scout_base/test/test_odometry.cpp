@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 
 #include "scout_base/scout_odometry.hpp"
 
@@ -19,58 +20,55 @@ int main() {
   using westonrobot::ComputeOdometryStep;
   using westonrobot::IsFeedbackFresh;
   using westonrobot::ValidateFeedbackTimeout;
-  using westonrobot::ValidateCommandLateralVelocitySign;
-  using westonrobot::ValidateOdometryLinearVelocitySign;
+  using westonrobot::ValidateVelocitySigns;
+  using westonrobot::VelocitySigns;
   try {
-    Check(ValidateOdometryLinearVelocitySign(1) == 1, "default sign");
-    Check(ValidateOdometryLinearVelocitySign(-1) == -1, "reversed sign");
-    for (int sign : {0, 2, -2}) {
+    const auto parsed = ValidateVelocitySigns({1, -1, -1}, "signs");
+    Check(parsed.x == 1 && parsed.y == -1 && parsed.wz == -1, "parsed signs");
+    for (const std::vector<int64_t> &bad :
+         {std::vector<int64_t>{1, 1}, std::vector<int64_t>{1, 1, 1, 1},
+          std::vector<int64_t>{0, 1, 1}, std::vector<int64_t>{1, 2, 1},
+          std::vector<int64_t>{1, 1, -2}}) {
       bool rejected = false;
       try {
-        ValidateOdometryLinearVelocitySign(sign);
-      } catch (const std::invalid_argument&) {
+        ValidateVelocitySigns(bad, "signs");
+      } catch (const std::invalid_argument &) {
         rejected = true;
       }
-      Check(rejected, "invalid sign accepted");
-    }
-    Check(ValidateCommandLateralVelocitySign(1) == 1, "default lateral sign");
-    Check(ValidateCommandLateralVelocitySign(-1) == -1, "reversed lateral sign");
-    for (int sign : {0, 2, -2}) {
-      bool rejected = false;
-      try {
-        ValidateCommandLateralVelocitySign(sign);
-      } catch (const std::invalid_argument&) {
-        rejected = true;
-      }
-      Check(rejected, "invalid lateral sign accepted");
+      Check(rejected, "invalid signs accepted");
     }
     const auto forward = ComputeOdometryStep(0.02, 0.0, 0.0, 0.0, 1.0);
     Check(Near(forward.dx, 0.02) && Near(forward.linear_speed, 0.02),
           "default forward behavior changed");
-    const auto reversed = ComputeOdometryStep(-0.02, 0.0, 0.0, 0.0, 1.0, -1);
+    const VelocitySigns flip_x{-1, 1, 1};
+    const auto reversed = ComputeOdometryStep(-0.02, 0.0, 0.0, 0.0, 1.0, flip_x);
     Check(Near(reversed.dx, 0.02) && Near(reversed.linear_speed, 0.02),
           "reversed feedback did not become forward");
-    const auto backward = ComputeOdometryStep(0.02, 0.0, 0.0, 0.0, 1.0, -1);
-    Check(Near(backward.dx, -0.02), "backward feedback sign");
     const double yaw = std::acos(-1.0) / 2.0;
-    const auto rotated = ComputeOdometryStep(-0.02, 0.0, 0.0, yaw, 1.0, -1);
+    const auto rotated = ComputeOdometryStep(-0.02, 0.0, 0.0, yaw, 1.0, flip_x);
     Check(Near(rotated.dx, 0.0) && Near(rotated.dy, 0.02),
           "correction must precede body-to-world rotation");
-    const auto lateral = ComputeOdometryStep(0.0, 0.03, 0.0, yaw, 1.0, -1);
+    const auto lateral = ComputeOdometryStep(0.0, 0.03, 0.0, yaw, 1.0, flip_x);
     Check(Near(lateral.dx, -0.03) && Near(lateral.dy, 0.0) &&
               Near(lateral.lateral_speed, 0.03),
-          "lateral feedback changed");
-    const auto turning = ComputeOdometryStep(-0.02, 0.01, 0.03, 0.37, 0.2, -1);
-    Check(Near(turning.dx, (0.02 * std::cos(0.37) - 0.01 * std::sin(0.37)) * 0.2) &&
-              Near(turning.dy, (0.02 * std::sin(0.37) + 0.01 * std::cos(0.37)) * 0.2),
-          "combined body motion");
-    Check(Near(turning.dtheta, 0.006) && Near(turning.angular_speed, 0.03),
-          "yaw feedback changed");
+          "x sign must not change lateral feedback");
+    const auto flip_y =
+        ComputeOdometryStep(0.0, 0.03, 0.0, 0.0, 1.0, VelocitySigns{1, -1, 1});
+    Check(Near(flip_y.dy, -0.03) && Near(flip_y.lateral_speed, -0.03),
+          "y sign must flip lateral feedback");
+    const auto flip_wz = ComputeOdometryStep(0.02, 0.0, 0.03, 0.0, 0.2,
+                                             VelocitySigns{1, 1, -1});
+    Check(Near(flip_wz.angular_speed, -0.03) && Near(flip_wz.dtheta, -0.006) &&
+              Near(flip_wz.dx, 0.004),
+          "wz sign must flip yaw feedback only");
+    const auto turning =
+        ComputeOdometryStep(-0.02, 0.01, 0.03, 0.37, 0.2, flip_x);
     const auto original = ComputeOdometryStep(0.02, 0.01, 0.03, 0.37, 0.2);
     Check(Near(original.dx, turning.dx) && Near(original.dy, turning.dy) &&
               Near(original.dtheta, turning.dtheta),
-          "default compatibility");
-    const auto stationary = ComputeOdometryStep(-0.02, 0.01, 0.03, 0.37, 0.0, -1);
+          "combined body motion");
+    const auto stationary =
+        ComputeOdometryStep(-0.02, 0.01, 0.03, 0.37, 0.0, VelocitySigns{-1, -1, -1});
     Check(Near(stationary.dx, 0.0) && Near(stationary.dy, 0.0) &&
               Near(stationary.dtheta, 0.0),
           "zero time step");
@@ -92,7 +90,7 @@ int main() {
       }
       Check(rejected, "invalid feedback timeout accepted");
     }
-    std::cout << "26 odometry checks passed\n";
+    std::cout << "odometry checks passed\n";
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return 1;

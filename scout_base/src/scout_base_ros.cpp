@@ -22,18 +22,20 @@ ScoutBaseRos::ScoutBaseRos(std::string node_name)
   this->declare_parameter("odom_frame", rclcpp::ParameterValue("odom"));
   this->declare_parameter("base_frame", rclcpp::ParameterValue("base_link"));
   this->declare_parameter("odom_topic_name", rclcpp::ParameterValue("odom"));
-  rcl_interfaces::msg::ParameterDescriptor odometry_sign_descriptor;
-  odometry_sign_descriptor.read_only = true;
-  odometry_sign_descriptor.description =
-      "Longitudinal odometry feedback sign (+1 or -1); commands are unchanged";
-  this->declare_parameter("odom_linear_velocity_sign", rclcpp::ParameterValue(1),
-                          odometry_sign_descriptor);
-  rcl_interfaces::msg::ParameterDescriptor lateral_sign_descriptor;
-  lateral_sign_descriptor.read_only = true;
-  lateral_sign_descriptor.description =
-      "Lateral command sign (+1 or -1) for omni bases; feedback is unchanged";
-  this->declare_parameter("cmd_lateral_velocity_sign", rclcpp::ParameterValue(1),
-                          lateral_sign_descriptor);
+  rcl_interfaces::msg::ParameterDescriptor cmd_signs_descriptor;
+  cmd_signs_descriptor.read_only = true;
+  cmd_signs_descriptor.description =
+      "Signs [x, y, wz] (+1 or -1) applied to cmd_vel before it is sent to the base";
+  this->declare_parameter("cmd_velocity_signs",
+                          rclcpp::ParameterValue(std::vector<int64_t>{1, 1, 1}),
+                          cmd_signs_descriptor);
+  rcl_interfaces::msg::ParameterDescriptor odom_signs_descriptor;
+  odom_signs_descriptor.read_only = true;
+  odom_signs_descriptor.description =
+      "Signs [x, y, wz] (+1 or -1) applied to the base feedback before odometry";
+  this->declare_parameter("odom_velocity_signs",
+                          rclcpp::ParameterValue(std::vector<int64_t>{1, 1, 1}),
+                          odom_signs_descriptor);
 
   rcl_interfaces::msg::ParameterDescriptor feedback_timeout_descriptor;
   feedback_timeout_descriptor.read_only = true;
@@ -58,12 +60,12 @@ void ScoutBaseRos::LoadParameters() {
   this->get_parameter_or<std::string>("base_frame", base_frame_, "base_link");
   this->get_parameter_or<std::string>("odom_topic_name", odom_topic_name_,
                                       "odom");
-  this->get_parameter_or<int>("odom_linear_velocity_sign",
-                             odom_linear_velocity_sign_, 1);
-  ValidateOdometryLinearVelocitySign(odom_linear_velocity_sign_);
-  this->get_parameter_or<int>("cmd_lateral_velocity_sign",
-                             cmd_lateral_velocity_sign_, 1);
-  ValidateCommandLateralVelocitySign(cmd_lateral_velocity_sign_);
+  cmd_signs_ = ValidateVelocitySigns(
+      this->get_parameter("cmd_velocity_signs").as_integer_array(),
+      "cmd_velocity_signs");
+  odom_signs_ = ValidateVelocitySigns(
+      this->get_parameter("odom_velocity_signs").as_integer_array(),
+      "odom_velocity_signs");
   this->get_parameter_or<double>("feedback_timeout", feedback_timeout_, 0.5);
   ValidateFeedbackTimeout(feedback_timeout_);
 
@@ -78,10 +80,10 @@ void ScoutBaseRos::LoadParameters() {
   std::cout << "- odom frame name: " << odom_frame_ << std::endl;
   std::cout << "- base frame name: " << base_frame_ << std::endl;
   std::cout << "- odom topic name: " << odom_topic_name_ << std::endl;
-  std::cout << "- odom linear velocity sign: " << odom_linear_velocity_sign_
-            << std::endl;
-  std::cout << "- cmd lateral velocity sign: " << cmd_lateral_velocity_sign_
-            << std::endl;
+  std::cout << "- cmd velocity signs [x, y, wz]: [" << cmd_signs_.x << ", "
+            << cmd_signs_.y << ", " << cmd_signs_.wz << "]" << std::endl;
+  std::cout << "- odom velocity signs [x, y, wz]: [" << odom_signs_.x << ", "
+            << odom_signs_.y << ", " << odom_signs_.wz << "]" << std::endl;
   std::cout << "- feedback timeout: " << feedback_timeout_ << " s" << std::endl;
 
   std::cout << "- is scout mini: " << std::boolalpha << is_scout_mini_
@@ -168,7 +170,8 @@ void ScoutBaseRos::Run() {
     messenger->SetOdometryFrame(odom_frame_);
     messenger->SetBaseFrame(base_frame_);
     messenger->SetOdometryTopicName(odom_topic_name_);
-    messenger->SetOdometryLinearVelocitySign(odom_linear_velocity_sign_);
+    messenger->SetCommandVelocitySigns(cmd_signs_);
+    messenger->SetOdometryVelocitySigns(odom_signs_);
     messenger->SetFeedbackTimeout(feedback_timeout_);
     if (simulated_robot_) messenger->SetSimulationMode(sim_control_rate_);
 
@@ -204,9 +207,9 @@ void ScoutBaseRos::Run() {
     messenger->SetOdometryFrame(odom_frame_);
     messenger->SetBaseFrame(base_frame_);
     messenger->SetOdometryTopicName(odom_topic_name_);
-    messenger->SetOdometryLinearVelocitySign(odom_linear_velocity_sign_);
+    messenger->SetCommandVelocitySigns(cmd_signs_);
+    messenger->SetOdometryVelocitySigns(odom_signs_);
     messenger->SetFeedbackTimeout(feedback_timeout_);
-    messenger->SetCommandLateralVelocitySign(cmd_lateral_velocity_sign_);
     if (simulated_robot_) messenger->SetSimulationMode(sim_control_rate_);
 
     // connect to robot and setup ROS subscription
